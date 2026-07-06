@@ -1,8 +1,8 @@
-# OxiLaunch — Fair-Launch Bonding Curve Token Launchpad on OrixaChain
+# RobinLaunch — Fair-Launch Bonding Curve Token Launchpad on Robinhood Chain
 
 > Permissionless token launchpad with transparent bonding curves, auto-graduation to DEX, and built-in community engagement.
 
-Inspired by [RobinFun](https://robinfun.live) — built for **OrixaChain (OXC)**.
+Inspired by [RobinFun](https://robinfun.live) — built for **Robinhood Chain**.
 
 ---
 
@@ -14,7 +14,7 @@ Inspired by [RobinFun](https://robinfun.live) — built for **OrixaChain (OXC)**
 - **1% trade fee** — 0.5% to creator, 0.5% to protocol
 - **Community Takeover (CTO)** — claim abandoned project fees
 - **Livestream per token** — WebRTC streaming + live chat
-- **Verifiable on-chain** — everything is on OXC explorer
+- **Verifiable on-chain** — everything is on ETH explorer
 
 ---
 
@@ -36,7 +36,7 @@ oxi-launchpad/
 | Layer | Tech |
 |---|---|
 | Smart Contracts | Solidity ^0.8.24, Foundry |
-| Chain | OrixaChain (OXC, chainId 51488) |
+| Chain | Robinhood Chain (ETH, chainId 4663) |
 | Frontend | Next.js 14, Tailwind, Wagmi, RainbowKit |
 | Backend | Node.js, Express, PostgreSQL, Redis |
 | Streaming | LiveKit (WebRTC SFU) |

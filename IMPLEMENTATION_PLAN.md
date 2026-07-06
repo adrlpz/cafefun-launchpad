@@ -1,9 +1,9 @@
-# OxiLaunch — Implementation Plan
+# RobinLaunch — Implementation Plan
 
 **Version:** 1.0  
 **Date:** 2026-07-06  
 **Stack:** Solidity (Foundry) + TypeScript (Backend/API) + React/Next.js (Frontend)  
-**Target Chain:** OrixaChain (OXC) — chainId 51488  
+**Target Chain:** Robinhood Chain (ETH) — chainId 4663  
 **Timeline:** 12 weeks to Mainnet Launch  
 
 ---
@@ -69,16 +69,16 @@ Create `.github/workflows/` with:
 | `contracts.yml` | PR/merge to `contracts/` | `forge build`, `forge test`, `forge snapshot`, slither |
 | `frontend.yml` | PR/merge to `frontend/` | `npm run lint`, `npm run build`, `npm run test` |
 | `backend.yml` | PR/merge to `backend/` | `tsc --noEmit`, `npm run test` |
-| `deploy.yml` | Tag `v*` | Forge deploy to OXC mainnet + verify on Blockscout |
+| `deploy.yml` | Tag `v*` | Forge deploy to Robinhood Chain mainnet + verify on Blockscout |
 | `audit.yml` | Weekly | Slither + solhint + dependency audit |
 
 ### 0.3 Development Environment
 
 ```bash
-# Local OXC fork via Anvil
-anvil --fork-url https://rpc.orixachain.com --chain-id 51488 --port 8545
+# Local ETH fork via Anvil
+anvil --fork-url https://rpc.robinhoodchain.com --chain-id 4663 --port 8545
 
-# Deploy Uniswap V2 on local fork (if not on OXC yet)
+# Deploy Uniswap V2 on local fork (if not on ETH yet)
 forge script script/DeployUniswapV2.s.sol --rpc-url http://localhost:8545 --broadcast
 
 # Set env
@@ -95,11 +95,11 @@ cp .env.example .env
 | Factory pattern | Minimal proxy + CREATE2 | Cheaper deploys, deterministic addresses |
 | Frontend framework | Next.js 14 App Router | SSR for token pages, SEO, fast builds |
 | Wallet connection | RainbowKit + Wagmi | Best UX, multi-wallet support |
-| Indexer | Custom (not The Graph) | Full control, lighter infra for OXC; revisit v2 |
+| Indexer | Custom (not The Graph) | Full control, lighter infra for ETH; revisit v2 |
 | DB | PostgreSQL + Drizzle | Type-safe queries, migrations |
 | WebRTC | LiveKit self-hosted | Open-source SFU, low latency, simple API |
 | Chat | Socket.IO + Postgres | Real-time, persistent history, simple |
-| Deploy target | VPS (systemd) | Existing OXC infra; Docker optional |
+| Deploy target | VPS (systemd) | Existing ETH infra; Docker optional |
 
 ---
 
@@ -110,13 +110,13 @@ cp .env.example .env
 ```
 contracts/
 ├── src/
-│   ├── OxiFactory.sol          # Factory: create tokens, manage protocol
-│   ├── OxiToken.sol            # Individual token: bonding curve + fee logic
-│   ├── OxiFeeCollector.sol     # Protocol treasury
+│   ├── RobinFactory.sol          # Factory: create tokens, manage protocol
+│   ├── RobinToken.sol            # Individual token: bonding curve + fee logic
+│   ├── RobinFeeCollector.sol     # Protocol treasury
 │   ├── interfaces/
-│   │   ├── IOxiFactory.sol
-│   │   ├── IOxiToken.sol
-│   │   └── IOxiFeeCollector.sol
+│   │   ├── IRobinFactory.sol
+│   │   ├── IRobinToken.sol
+│   │   └── IRobinFeeCollector.sol
 │   ├── libraries/
 │   │   ├── BondingCurveLib.sol  # Pure math for curve calculations
 │   │   └── FeeLib.sol          # Fee accrual + distribution logic
@@ -125,8 +125,8 @@ contracts/
 │       └── Constants.sol       # Protocol constants
 ├── test/
 │   ├── unit/
-│   │   ├── OxiFactory.t.sol
-│   │   ├── OxiToken.t.sol
+│   │   ├── RobinFactory.t.sol
+│   │   ├── RobinToken.t.sol
 │   │   ├── BondingCurveLib.t.sol
 │   │   └── FeeLib.t.sol
 │   ├── integration/
@@ -139,13 +139,13 @@ contracts/
 │   └── adversarial/
 │       └── AttackScenarios.t.sol
 ├── script/
-│   ├── DeployOxiFactory.s.sol
-│   └── UpgradeOxiFactory.s.sol
+│   ├── DeployRobinFactory.s.sol
+│   └── UpgradeRobinFactory.s.sol
 ├── foundry.toml
 └── remappings.txt
 ```
 
-### 1.2 OxiFactory.sol — Detailed Spec
+### 1.2 RobinFactory.sol — Detailed Spec
 
 ```solidity
 // SPDX-License-Identifier: MIT
@@ -156,7 +156,7 @@ import {OwnableUpgradeable} from "@oz/contracts/access/OwnableUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@oz/contracts/utils/ReentrancyGuardUpgradeable.sol";
 import {PausableUpgradeable} from "@oz/contracts/utils/PausableUpgradeable.sol";
 
-contract OxiFactory is UUPSUpgradeable, OwnableUpgradeable, ReentrancyGuardUpgradeable, PausableUpgradeable {
+contract RobinFactory is UUPSUpgradeable, OwnableUpgradeable, ReentrancyGuardUpgradeable, PausableUpgradeable {
     // ── Storage ───────────────────────────────────────
     struct TokenConfig {
         address creator;
@@ -167,9 +167,9 @@ contract OxiFactory is UUPSUpgradeable, OwnableUpgradeable, ReentrancyGuardUpgra
     }
 
     address public immutable uniswapV2Router;
-    address public immutable woxc;       // Wrapped OXC
+    address public immutable weth;       // Wrapped ETH
     address public feeCollector;         // protocol treasury
-    uint256 public graduationThreshold; // in OXC (snapshot of $9,300)
+    uint256 public graduationThreshold; // in ETH (snapshot of $9,300)
     uint256 public curveSupply;          // 70% of 1B
     uint256 public lpReserve;            // 30% of 1B
     uint256 public tradeFeeBps;          // 100 = 1%
@@ -180,13 +180,13 @@ contract OxiFactory is UUPSUpgradeable, OwnableUpgradeable, ReentrancyGuardUpgra
 
     // ── Events ────────────────────────────────────────
     event TokenCreated(address indexed token, address indexed creator, string name, string symbol, uint256 deployBlock);
-    event Graduated(address indexed token, address indexed pair, uint256 liquidity, uint256 oxcAmount);
+    event Graduated(address indexed token, address indexed pair, uint256 liquidity, uint256 ethAmount);
     event FeeDestinationChanged(address indexed token, address indexed oldDest, address indexed newDest);
 
     // ── Functions ─────────────────────────────────────
     constructor() { _disableInitializers(); }
 
-    function initialize(address _router, address _woxc, address _feeCollector) external initializer {
+    function initialize(address _router, address _weth, address _feeCollector) external initializer {
         __UUPSUpgradeable_init();
         __Ownable_init(msg.sender);
         __ReentrancyGuard_init();
@@ -194,7 +194,7 @@ contract OxiFactory is UUPSUpgradeable, OwnableUpgradeable, ReentrancyGuardUpgra
         // set constants
     }
 
-    /// @notice Deploy a new token via CREATE2 with vanity address ending in 51488
+    /// @notice Deploy a new token via CREATE2 with vanity address ending in 4663
     function createToken(string calldata name, string calldata symbol, string calldata imageURI)
         external payable whenNotPaused returns (address token);
 
@@ -229,23 +229,23 @@ library BondingCurveLib {
         uint256 tokenReserve;        // y in x·y = k
         uint256 k;                   // invariant
         uint256 tokensSold;          // cumulative tokens sold from curve
-        uint256 oxcRaised;           // cumulative OXC raised
+        uint256 ethRaised;           // cumulative ETH raised
     }
 
-    /// @notice Calculate tokens received for a given OXC amount
-    /// @dev Implements: Δtokens = y - k / (x + ΔOXC)
-    function getTokensForOxc(CurveState memory state, uint256 oxcIn, uint256 feeBps)
+    /// @notice Calculate tokens received for a given ETH amount
+    /// @dev Implements: Δtokens = y - k / (x + ΔETH)
+    function getTokensForOxc(CurveState memory state, uint256 ethIn, uint256 feeBps)
         external pure returns (uint256 tokensOut, uint256 fee);
 
-    /// @notice Calculate OXC received for a given token amount
-    /// @dev Implements: ΔOXC = x - k / (y + Δtokens)
+    /// @notice Calculate ETH received for a given token amount
+    /// @dev Implements: ΔETH = x - k / (y + Δtokens)
     function getOxcForTokens(CurveState memory state, uint256 tokensIn, uint256 feeBps)
-        external pure returns (uint256 oxcOut, uint256 fee);
+        external pure returns (uint256 ethOut, uint256 fee);
 
-    /// @notice Get current spot price (OXC per token)
+    /// @notice Get current spot price (ETH per token)
     function getPrice(CurveState memory state) external pure returns (uint256);
 
-    /// @notice Get market cap in OXC
+    /// @notice Get market cap in ETH
     function getMarketCap(CurveState memory state) external pure returns (uint256);
 
     /// @notice Initialize curve with virtual reserves
@@ -254,7 +254,7 @@ library BondingCurveLib {
 }
 ```
 
-### 1.4 OxiToken.sol — Key Logic
+### 1.4 RobinToken.sol — Key Logic
 
 ```solidity
 // SPDX-License-Identifier: MIT
@@ -264,14 +264,14 @@ import {ERC20} from "@oz/contracts/token/ERC20/ERC20.sol";
 import {ReentrancyGuard} from "@oz/contracts/utils/ReentrancyGuard.sol";
 import {BondingCurveLib} from "./libraries/BondingCurveLib.sol";
 
-contract OxiToken is ERC20, ReentrancyGuard {
-    IOxiFactory public factory;
+contract RobinToken is ERC20, ReentrancyGuard {
+    IRobinFactory public factory;
     BondingCurveLib.CurveState public curve;
 
     // Fee accumulation post-graduation
     uint256 public accumulatedCreatorFee;
     uint256 public accumulatedProtocolFee;
-    uint256 public constant FEE_SWAP_THRESHOLD = 0.005 ether; // $5 in OXC terms
+    uint256 public constant FEE_SWAP_THRESHOLD = 0.005 ether; // $5 in ETH terms
 
     // ── Buy ────────────────────────────────────────────
     function buy() external payable nonReentrant {
@@ -285,16 +285,16 @@ contract OxiToken is ERC20, ReentrancyGuard {
     // ── Sell ───────────────────────────────────────────
     function sell(uint256 tokenAmount) external nonReentrant {
         // 1. Burn tokens from seller
-        // 2. Calculate OXC return from curve (minus 1% fee)
+        // 2. Calculate ETH return from curve (minus 1% fee)
         // 3. Update curve reserves
-        // 4. Send OXC to seller
+        // 4. Send ETH to seller
         // 5. Emit Sell event
     }
 
     // ── Graduation ─────────────────────────────────────
     function graduate() external nonReentrant {
         // Only callable from factory
-        // 1. Take liquidity reserve tokens + raised OXC
+        // 1. Take liquidity reserve tokens + raised ETH
         // 2. Approve Uniswap V2 router
         // 3. Add liquidity → burn LP tokens
         // 4. After graduation: fee accrual mode changes
@@ -302,7 +302,7 @@ contract OxiToken is ERC20, ReentrancyGuard {
 
     // ── Post-Graduation Fee Swap ───────────────────────
     function swapAccruedFees() external {
-        // Auto-swap accumulated fees ≥ $5 to OXC
+        // Auto-swap accumulated fees ≥ $5 to ETH
         // Send 50% to creator / feeDestination, 50% to protocol
     }
 }
@@ -314,20 +314,20 @@ contract OxiToken is ERC20, ReentrancyGuard {
 
 | Day | Task | Deliverable |
 |---|---|---|
-| Mon | Fork OXC via Anvil, deploy Uniswap V2 locally | Local dev env ready |
+| Mon | Fork ETH via Anvil, deploy Uniswap V2 locally | Local dev env ready |
 | Tue | Write `BondingCurveLib.sol` — pure math functions | Library compiles, unit tests pass |
 | Wed | Fuzz test curve math — invariants across 10k random trades | Invariants hold |
-| Thu | Write `OxiFactory.sol` — creation logic + CREATE2 vanity | Factory deploys tokens |
+| Thu | Write `RobinFactory.sol` — creation logic + CREATE2 vanity | Factory deploys tokens |
 | Fri | Unit tests: factory + token creation | ≥90% coverage on factory |
 
-#### Week 3: OxiToken + Trading
+#### Week 3: RobinToken + Trading
 
 | Day | Task | Deliverable |
 |---|---|---|
-| Mon | Write `OxiToken.sol` — buy/sell with curve + fee accrual | Token trades on curve |
+| Mon | Write `RobinToken.sol` — buy/sell with curve + fee accrual | Token trades on curve |
 | Tue | Unit tests: buy/sell edge cases (empty curve, max supply, rounding) | All edge cases handled |
 | Wed | Integration test: create → buy → sell → verify fees | End-to-end flow tested |
-| Thu | Fee distribution logic + `OxiFeeCollector.sol` | Fees split correctly |
+| Thu | Fee distribution logic + `RobinFeeCollector.sol` | Fees split correctly |
 | Fri | Integration test: multiple tokens, concurrent trades | Isolation proven |
 
 #### Week 4: Graduation + CTO
@@ -346,7 +346,7 @@ contract OxiToken is ERC20, ReentrancyGuard {
 |---|---|
 | `curve.k` constant | x·y = k never changes outside of trades |
 | Token supply invariant | Total supply = burned + circulating + LP reserve |
-| Per-token OXC isolation | One token's curve balance never overlaps another |
+| Per-token ETH isolation | One token's curve balance never overlaps another |
 | Fee correctness | Cumulative fees = 1% of volume (within rounding) |
 | Graduation atomicity | Graduated tokens cannot re-enter curve |
 | LP burn final | Graduated LP tokens at 0xdead permanently |
@@ -415,7 +415,7 @@ frontend/
 ### 2.2 Key UI Screens
 
 #### Landing Page (`/`)
-- Hero section: "Fair-launch bonding curves on OrixaChain"
+- Hero section: "Fair-launch bonding curves on Robinhood Chain"
 - Stats bar: total tokens launched, total volume, total graduated
 - Featured/latest tokens (top 3 by volume)
 - CTA: "Launch a Token" + "Explore Tokens"
@@ -430,12 +430,12 @@ frontend/
 #### Create Token (`/create`)
 - Form: name, symbol, image upload (IPFS)
 - Preview: address, curve stats
-- Gas estimate + network info (OXC)
+- Gas estimate + network info (ETH)
 - "Create" button → sends tx → redirects to token page
 
 #### Token Detail (`/token/[address]`)
 - Left: CurveChart (interactive, shows price curve + current position)
-- Middle: TradePanel (buy amount → tokens, sell amount → OXC, 1% fee shown)
+- Middle: TradePanel (buy amount → tokens, sell amount → ETH, 1% fee shown)
 - Below: TradeHistory table, Top Holders
 - Right sidebar: TokenStats + Creator info
 - Bottom section: LiveVideo (if creator streaming) + LiveChat
@@ -450,12 +450,12 @@ frontend/
 ```typescript
 // lib/config.ts
 import { http, createConfig } from 'wagmi';
-import { oxiChain } from './chain';  // OXC chain definition
+import { oxiChain } from './chain';  // ETH chain definition
 
 export const wagmiConfig = createConfig({
   chains: [oxiChain],
   transports: {
-    [oxiChain.id]: http('https://rpc.orixachain.com'),
+    [oxiChain.id]: http('https://rpc.robinhoodchain.com'),
   },
 });
 
@@ -463,13 +463,13 @@ export const wagmiConfig = createConfig({
 export function calculateTokensForOxc(
   virtualOxcReserve: bigint,
   tokenReserve: bigint,
-  oxcIn: bigint,
+  ethIn: bigint,
   feeBps: number
 ): { tokensOut: bigint; fee: bigint } {
   const k = virtualOxcReserve * tokenReserve;
-  const fee = (oxcIn * BigInt(feeBps)) / 10000n;
-  const oxcAfterFee = oxcIn - fee;
-  const newVirtualOxc = virtualOxcReserve + oxcAfterFee;
+  const fee = (ethIn * BigInt(feeBps)) / 10000n;
+  const ethAfterFee = ethIn - fee;
+  const newVirtualOxc = virtualOxcReserve + ethAfterFee;
   const newTokenReserve = k / newVirtualOxc;
   const tokensOut = tokenReserve - newTokenReserve;
   return { tokensOut, fee };
@@ -479,7 +479,7 @@ export function calculateTokensForOxc(
 export function useToken(address: `0x${string}`) {
   const tokenContract = {
     address,
-    abi: OxiTokenABI,
+    abi: RobinTokenABI,
   };
 
   const { data: curveState } = useReadContract({
@@ -569,7 +569,7 @@ export const trades = pgTable('trades', {
   type:          text('type', { enum: ['buy', 'sell'] }).notNull(),
   trader:        text('trader').notNull(),
   tokenAmount:   text('token_amount').notNull(),
-  oxcAmount:     text('oxc_amount').notNull(),
+  ethAmount:     text('eth_amount').notNull(),
   price:         text('price').notNull(),
   txHash:        text('tx_hash').notNull().unique(),
   blockNumber:   integer('block_number').notNull(),
@@ -605,7 +605,7 @@ export const ctoRequests = pgTable('cto_requests', {
 
 ```
                      ┌──────────────┐
-                     │  OXC RPC     │
+                     │  ETH RPC     │
                      └──────┬───────┘
                             │ polling every 2s (or newHeads subscription)
                             ▼
@@ -642,12 +642,12 @@ export const ctoRequests = pgTable('cto_requests', {
 
 | Event | Source Contract | Fields |
 |---|---|---|
-| `TokenCreated` | OxiFactory | token, creator, name, symbol |
-| `Buy` | OxiToken | trader, tokenAmount, oxcAmount, price |
-| `Sell` | OxiToken | trader, tokenAmount, oxcAmount, price |
-| `Graduated` | OxiFactory | token, pair, liquidity, oxcAmount |
-| `FeeDestinationChanged` | OxiFactory | token, oldDest, newDest |
-| `Transfer` | OxiToken | from, to, value → holder tracking |
+| `TokenCreated` | RobinFactory | token, creator, name, symbol |
+| `Buy` | RobinToken | trader, tokenAmount, ethAmount, price |
+| `Sell` | RobinToken | trader, tokenAmount, ethAmount, price |
+| `Graduated` | RobinFactory | token, pair, liquidity, ethAmount |
+| `FeeDestinationChanged` | RobinFactory | token, oldDest, newDest |
+| `Transfer` | RobinToken | from, to, value → holder tracking |
 
 ### 3.4 Chat Server Design
 
@@ -655,7 +655,7 @@ export const ctoRequests = pgTable('cto_requests', {
 WebSocket (Socket.IO) flow:
 1. User connects → requests to join room `/token/:address`
 2. User sends message → server verifies off-chain EIP-191 signature
-   Signed message: "OxiLaunch Chat\nToken: {address}\nMessage: {text}\nNonce: {nonce}"
+   Signed message: "RobinLaunch Chat\nToken: {address}\nMessage: {text}\nNonce: {nonce}"
 3. Server validates signature against sender wallet address
 4. If valid: store in DB + broadcast to room
 5. Creator can send `ban_wallet` event → server adds to ban list
@@ -672,8 +672,8 @@ WebSocket (Socket.IO) flow:
 
 | File | Tests |
 |---|---|
-| `OxiFactory.t.sol` | Creating tokens, edge cases (duplicate salt, zero address), fee config |
-| `OxiToken.t.sol` | Buy/sell at various curve positions, fee calculation rounding |
+| `RobinFactory.t.sol` | Creating tokens, edge cases (duplicate salt, zero address), fee config |
+| `RobinToken.t.sol` | Buy/sell at various curve positions, fee calculation rounding |
 | `BondingCurveLib.t.sol` | Math correctness across price range, overflow safety |
 | `FeeLib.t.sol` | Fee split accuracy, cumulative accounting |
 
@@ -716,7 +716,7 @@ WebSocket (Socket.IO) flow:
 | 7 | Fee total never exceeds 100% (integer overflow checked) | ☐ |
 | 8 | Graduation: cannot double-graduate | ☐ |
 | 9 | Graduation: flash loan resistant LP provisioning | ☐ |
-| 10 | Per-curve OXC isolation (one token ≠ another's balance) | ☐ |
+| 10 | Per-curve ETH isolation (one token ≠ another's balance) | ☐ |
 | 11 | Best-effort fee payout (failure never blocks trades) | ☐ |
 | 12 | All external calls guarded (try-catch or gas limit) | ☐ |
 | 13 | Slither: no high-severity findings | ☐ |
@@ -751,34 +751,34 @@ forge coverage --report lcov
 ### 5.1 Contract Deployment (Forge Script)
 
 ```solidity
-// script/DeployOxiFactory.s.sol
-contract DeployOxiFactory is Script {
+// script/DeployRobinFactory.s.sol
+contract DeployRobinFactory is Script {
     function run() external {
         uint256 deployerKey = vm.envUint("DEPLOYER_PK");
         address deployer = vm.addr(deployerKey);
         address uniswapV2Router = vm.envAddress("UNISWAP_V2_ROUTER");
-        address woxc = vm.envAddress("WOXC");
+        address weth = vm.envAddress("WETH");
         address feeCollector = vm.envAddress("FEE_COLLECTOR");
 
         vm.startBroadcast(deployerKey);
 
-        // 1. Deploy OxiFeeCollector
-        OxiFeeCollector feeCollectorImpl = new OxiFeeCollector();
+        // 1. Deploy RobinFeeCollector
+        RobinFeeCollector feeCollectorImpl = new RobinFeeCollector();
 
-        // 2. Deploy OxiFactory implementation
-        OxiFactory factoryImpl = new OxiFactory();
+        // 2. Deploy RobinFactory implementation
+        RobinFactory factoryImpl = new RobinFactory();
 
         // 3. Deploy ERC1967Proxy for factory
         ERC1967Proxy factoryProxy = new ERC1967Proxy(
             address(factoryImpl),
             abi.encodeWithSelector(
-                OxiFactory.initialize.selector,
-                uniswapV2Router, woxc, address(feeCollectorImpl)
+                RobinFactory.initialize.selector,
+                uniswapV2Router, weth, address(feeCollectorImpl)
             )
         );
 
         // 4. Transfer ownership
-        OxiFactory(address(factoryProxy)).transferOwnership(deployer);
+        RobinFactory(address(factoryProxy)).transferOwnership(deployer);
 
         vm.stopBroadcast();
 
@@ -793,29 +793,29 @@ contract DeployOxiFactory is Script {
 ### 5.2 Mainnet Launch Checklist
 
 ```bash
-# 1. Deploy Uniswap V2 on OXC (if not already deployed)
-forge script script/DeployUniswapV2.s.sol --rpc-url https://rpc.orixachain.com --broadcast
+# 1. Deploy Uniswap V2 on ETH (if not already deployed)
+forge script script/DeployUniswapV2.s.sol --rpc-url https://rpc.robinhoodchain.com --broadcast
 
 # 2. Deploy core contracts
-forge script script/DeployOxiFactory.s.sol --rpc-url https://rpc.orixachain.com --broadcast --verify
+forge script script/DeployRobinFactory.s.sol --rpc-url https://rpc.robinhoodchain.com --broadcast --verify
 
 # 3. Verify implementation contracts on Blockscout
-forge verify-contract <address> src/OxiFactory.sol:OxiFactory --chain 51488
+forge verify-contract <address> src/RobinFactory.sol:RobinFactory --chain 4663
 
 # 4. Deploy backend
 cd backend && npm run build
 # Copy to VPS via rsync
-rsync -avz --exclude node_modules ./ vps-oxc:~/oxi-backend/
+rsync -avz --exclude node_modules ./ vps-eth:~/oxi-backend/
 # Start API + indexer + chat via systemd
 
 # 5. Deploy frontend
 cd frontend && npm run build
 # Static export or Next.js standalone on VPS
-rsync -avz --exclude node_modules .next/ vps-oxc:~/oxi-frontend/
+rsync -avz --exclude node_modules .next/ vps-eth:~/oxi-frontend/
 # Configure nginx reverse proxy
 
 # 6. DNS + SSL
-# Point oxilaunch.io → VPS-OXC IP
+# Point oxilaunch.io → VPS-ETH IP
 # certbot --nginx -d oxilaunch.io
 
 # 7. Smoke test
@@ -862,7 +862,7 @@ rsync -avz --exclude node_modules .next/ vps-oxc:~/oxi-frontend/
 ```ini
 # /etc/systemd/system/oxi-api.service
 [Unit]
-Description=OxiLaunch API Server
+Description=RobinLaunch API Server
 After=network.target postgresql.service redis.service
 
 [Service]
@@ -950,17 +950,17 @@ Creator Browser                     LiveKit SFU               Viewer Browser
                         │ TX
                         ▼
 ┌─────────────────────────────────┐
-│        OrixaChain (OXC)         │
+│        Robinhood Chain (ETH)         │
 │  ┌───────────────────────────┐  │
-│  │  OxiFactory               │  │
-│  │  ├─ createToken() ────────┼──┼──→ deploys OxiToken (CREATE2)
+│  │  RobinFactory               │  │
+│  │  ├─ createToken() ────────┼──┼──→ deploys RobinToken (CREATE2)
 │  │  ├─ graduate() ──────────┼──┼──→ sends LP to UniswapV2
 │  │  └─ setFeeDestination()  │  │
 │  └───────────────────────────┘  │
 │  ┌───────────────────────────┐  │
-│  │  OxiToken #1 (0x...51488)│  │
+│  │  RobinToken #1 (0x...4663)│  │
 │  │  ├─ buy() ───────────────┼──┼──→ mints tokens, updates curve
-│  │  ├─ sell() ──────────────┼──┼──→ burns tokens, returns OXC
+│  │  ├─ sell() ──────────────┼──┼──→ burns tokens, returns ETH
 │  │  ├─ graduate() ──────────┼──┼──→ locks liquidity, flags graduated
 │  │  └─ swapAccruedFees()    │  │
 │  └───────────────────────────┘  │
@@ -1003,25 +1003,25 @@ Creator Browser                     LiveKit SFU               Viewer Browser
 ```
 Pre-Graduation (Curve):
 ────────────────────────
-Buyer sends X OXC
+Buyer sends X ETH
   ├─ 1% fee (0.01 * X / 2)  → Creator wallet (0.5%)
   ├─ 1% fee (0.01 * X / 2)  → Protocol treasury (0.5%)
   └─ 99%                      → Curve virtual reserve (updates k)
 
-Seller receives Y OXC
+Seller receives Y ETH
   ├─ 1% fee (0.01 * Y / 2)  → Creator wallet (0.5%)
   ├─ 1% fee (0.01 * Y / 2)  → Protocol treasury (0.5%)
   └─ 99%                      → From curve virtual reserve
 
 Post-Graduation (Uniswap V2):
 ──────────────────────────────
-Trade on Uniswap V2 (via OxiFeeCollector hook?)
+Trade on Uniswap V2 (via RobinFeeCollector hook?)
   └─ Better approach: 1% fee collected in token contract
      ├─ Accumulates in contract (both creator + protocol shares)
-     ├─ When accumulated ≥ $5 → auto-swap to OXC
+     ├─ When accumulated ≥ $5 → auto-swap to ETH
      │  ├─ 50% → Creator wallet
      │  └─ 50% → Protocol treasury
-     └─ Swap via Uniswap V2 router (sell fee tokens for OXC)
+     └─ Swap via Uniswap V2 router (sell fee tokens for ETH)
 ```
 
 ---
@@ -1041,13 +1041,13 @@ oxi-launchpad/
 │   ├── foundry.toml
 │   ├── remappings.txt
 │   ├── src/
-│   │   ├── OxiFactory.sol
-│   │   ├── OxiToken.sol
-│   │   ├── OxiFeeCollector.sol
+│   │   ├── RobinFactory.sol
+│   │   ├── RobinToken.sol
+│   │   ├── RobinFeeCollector.sol
 │   │   ├── interfaces/
-│   │   │   ├── IOxiFactory.sol
-│   │   │   ├── IOxiToken.sol
-│   │   │   └── IOxiFeeCollector.sol
+│   │   │   ├── IRobinFactory.sol
+│   │   │   ├── IRobinToken.sol
+│   │   │   └── IRobinFeeCollector.sol
 │   │   ├── libraries/
 │   │   │   ├── BondingCurveLib.sol
 │   │   │   └── FeeLib.sol
@@ -1056,8 +1056,8 @@ oxi-launchpad/
 │   │       └── Constants.sol
 │   ├── test/
 │   │   ├── unit/
-│   │   │   ├── OxiFactory.t.sol
-│   │   │   ├── OxiToken.t.sol
+│   │   │   ├── RobinFactory.t.sol
+│   │   │   ├── RobinToken.t.sol
 │   │   │   ├── BondingCurveLib.t.sol
 │   │   │   └── FeeLib.t.sol
 │   │   ├── integration/
@@ -1070,8 +1070,8 @@ oxi-launchpad/
 │   │   └── adversarial/
 │   │       └── AttackScenarios.t.sol
 │   └── script/
-│       ├── DeployOxiFactory.s.sol
-│       └── UpgradeOxiFactory.s.sol
+│       ├── DeployRobinFactory.s.sol
+│       └── UpgradeRobinFactory.s.sol
 ├── frontend/
 │   ├── app/
 │   │   ├── layout.tsx
@@ -1119,18 +1119,18 @@ oxi-launchpad/
 
 | # | Decision | Option Chosen | Alternative | Rationale |
 |---|---|---|---|---|
-| 1 | Target chain | OrixaChain (OXC) | Base, Arbitrum | Native chain, lower fees, ecosystem building |
+| 1 | Target chain | Robinhood Chain (ETH) | Base, Arbitrum | Native chain, lower fees, ecosystem building |
 | 2 | Factory upgrade pattern | UUPS | Transparent proxy | Cheaper per-token creation, standard for Foundry |
 | 3 | Token deploy pattern | Minimal proxy + CREATE2 | Cloning factory | Vanity address, cheaper deploys |
 | 4 | Curve type | Constant product (x·y=k) | Linear, logarithmic | Battle-tested, same as top launchpads |
 | 5 | Graduation DEX | Uniswap V2 | V3, Aerodrome | Simpler LP management, proven |
-| 6 | Fee mechanism (curve) | Direct OXC split | ERC-20 fee token | Simple, no extra token |
+| 6 | Fee mechanism (curve) | Direct ETH split | ERC-20 fee token | Simple, no extra token |
 | 7 | Fee mechanism (post-grade) | Token contract accrual + swap | Direct DEX fee hook | Works without modifying DEX |
 | 8 | Indexer | Custom (polling) | The Graph | Full control, lighter for custom chain |
 | 9 | Chat auth | Off-chain EIP-191 sig | On-chain tx | No gas cost, instant |
 | 10 | WebRTC | LiveKit self-hosted | Daily, Zoom API | Open-source, self-sovereign |
 | 11 | Token parameters | Fixed (70/30 split) | Configurable per creator | Simpler, fair for all, easier to audit |
-| 12 | Graduation threshold | $9,300 USD (snapshotted to OXC) | Fixed OXC | USD peg = consistent for all creators |
+| 12 | Graduation threshold | $9,300 USD (snapshotted to ETH) | Fixed ETH | USD peg = consistent for all creators |
 
 ---
 
@@ -1138,11 +1138,11 @@ oxi-launchpad/
 
 | Question | Impact | Notes |
 |---|---|---|
-| Is Uniswap V2 already deployed on OXC? | Blocking | If not, need to deploy it first |
-| What's the current OXC/USD rate? | Medium | Affects graduation threshold snapshot |
+| Is Uniswap V2 already deployed on ETH? | Blocking | If not, need to deploy it first |
+| What's the current ETH/USD rate? | Medium | Affects graduation threshold snapshot |
 | VPS spec for backend services? | Medium | RAM/CPU determines indexing performance |
 | Domain name for frontend? | Low | oxilaunch.io? oxi.fun? |
-| Liquidity: initial protocol treasury? | Low | Need OXC for gas + initial operations |
+| Liquidity: initial protocol treasury? | Low | Need ETH for gas + initial operations |
 | Audit budget? | Medium | Determines audit scope / firm choice |
 
 ---
