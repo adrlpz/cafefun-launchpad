@@ -1,4 +1,4 @@
-# RobinLaunch — Fair-Launch Bonding Curve Token Launchpad on Robinhood Chain
+# CafeFun — Fair-Launch Bonding Curve Token Launchpad on Robinhood Chain
 
 > Permissionless token launchpad with transparent bonding curves, auto-graduation to DEX, and built-in community engagement.
 

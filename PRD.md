@@ -1,4 +1,4 @@
-# RobinLaunch — PRD (Product Requirements Document)
+# CafeFun — PRD (Product Requirements Document)
 
 **Version:** 1.0  
 **Date:** 2026-07-06  
@@ -15,7 +15,7 @@
 Token launches today are dominated by insiders — presales, team allocations, and private rounds concentrate supply and information with a few, leaving retail buyers at a disadvantage. Liquidity rugs and honeypots kill trust in new projects. Existing fair-launch solutions are trapped on congested layer-1s with high fees.
 
 ### Proposed Solution
-**RobinLaunch** is a permissionless, fair-launch token launchpad native to Robinhood Chain. Anyone deploys a token in one transaction. Every token starts trading immediately on a transparent bonding curve — no presale, no team allocation, no insider rounds. When a token reaches its graduation threshold, it auto-migrates to a public Uniswap V2 pool with 100% of LP tokens burned permanently. Built-in livestream + chat per token for community engagement. CTO (Community Takeover) mechanism for abandoned projects.
+**CafeFun** is a permissionless, fair-launch token launchpad native to Robinhood Chain. Anyone deploys a token in one transaction. Every token starts trading immediately on a transparent bonding curve — no presale, no team allocation, no insider rounds. When a token reaches its graduation threshold, it auto-migrates to a public Uniswap V2 pool with 100% of LP tokens burned permanently. Built-in livestream + chat per token for community engagement. CTO (Community Takeover) mechanism for abandoned projects.
 
 ### Success Criteria (KPIs)
 
@@ -49,7 +49,7 @@ Token launches today are dominated by insiders — presales, team allocations, a
 **Acceptance Criteria:**
 - Creator connects wallet (MetaMask/Rainbow/WalletConnect)
 - Clicks "Launch a Token" → enters token name, symbol, optional image/livestream
-- Signs one transaction → token created with deterministic CREATE2 address ending in `...4663`
+- Signs one transaction → token created with deterministic CREATE2 address ending in `...cafe`
 - Token immediately appears on explore page with live curve stats
 - Zero coding or technical knowledge required
 
@@ -81,7 +81,7 @@ Token launches today are dominated by insiders — presales, team allocations, a
 **Acceptance Criteria:**
 - Any wallet submits CTO request from token page (off-chain signature, no gas)
 - Provides: new fee destination wallet, Telegram / X contact
-- RobinFun team reviews manually (RobinLaunch team reviews)
+- CafeFun team reviews manually (CafeFun team reviews)
 - On approval: owner-restricted function reassigns creator fee to new wallet
 - Only applies to tokens launched on the current factory
 
@@ -135,7 +135,7 @@ Token launches today are dominated by insiders — presales, team allocations, a
 │  ┌──────────────────────────────────────────────────────┐  │
 │  │              Smart Contracts (Solidity)               │  │
 │  │  ┌──────────────┐  ┌──────────────┐                 │  │
-│  │  │ RobinFactory    │  │ RobinToken     │ (CREATE2)       │  │
+│  │  │ CafeFunFactory    │  │ CafeFunToken     │ (CREATE2)       │  │
 │  │  │ (proxy+impl)  │  │ - Bonding    │ per token       │  │
 │  │  │               │  │   Curve      │                 │  │
 │  │  │ - createToken │  │ - buy/sell   │                 │  │
@@ -144,7 +144,7 @@ Token launches today are dominated by insiders — presales, team allocations, a
 │  │  └──────────────┘  └──────────────┘                 │  │
 │  │                                                      │  │
 │  │  ┌──────────────┐  ┌──────────────────────────────┐ │  │
-│  │  │ Uniswap V2   │  │ RobinFeeCollector              │ │  │
+│  │  │ Uniswap V2   │  │ CafeFunTreasury              │ │  │
 │  │  │ Pool (after  │  │ - auto-swap ETH fees         │ │  │
 │  │  │ graduation)  │  │ - distribute 50/50           │ │  │
 │  │  └──────────────┘  └──────────────────────────────┘ │  │
@@ -168,20 +168,20 @@ Token launches today are dominated by insiders — presales, team allocations, a
 
 ### 3.2 Smart Contract Design
 
-#### RobinFactory (Upgradeable)
+#### CafeFunFactory (Upgradeable)
 
 | Aspect | Detail |
 |---|---|
 | Pattern | Minimal proxy (EIP-1167) with CREATE2 for deterministic child addresses |
-| Child address | Vanity ending in `...4663` (chainId) via CREATE2 salt |
+| Child address | Vanity ending in `...cafe` (chainId) via CREATE2 salt |
 | State | Maps token address → TokenInfo (creator, feeDest, graduated, etc.) |
-| Key functions | `createToken(name, symbol, imageURI)` → deploys RobinToken |
+| Key functions | `createToken(name, symbol, imageURI)` → deploys CafeFunToken |
 | | `graduate(address token)` → permissionless graduation trigger |
 | | `setCreatorFeeDest(address token, address newDest)` → owner-only CTO |
 | | `upgradeTo(address newImpl)` → UUPS upgradeable |
 | Security | ReentrancyGuard, ownable, pausable |
 
-#### RobinToken (Individual per token, created via factory)
+#### CafeFunToken (Individual per token, created via factory)
 
 | Parameter | Value |
 |---|---|
@@ -220,7 +220,7 @@ Fee: 1% of ΔETH taken on entry (buy) or exit (sell)
 7. After graduation: 1% fee collected in contract, auto-swapped to ETH when ≥$5
 ```
 
-#### RobinFeeCollector
+#### CafeFunTreasury
 
 | Aspect | Detail |
 |---|---|
@@ -246,7 +246,7 @@ Fee: 1% of ΔETH taken on entry (buy) or exit (sell)
 | Concern | Mitigation |
 |---|---|
 | Reentrancy | OpenZeppelin ReentrancyGuard on all buy/sell/graduate functions |
-| Per-curve isolation | Each RobinToken is a separate contract; funds are **never** commingled |
+| Per-curve isolation | Each CafeFunToken is a separate contract; funds are **never** commingled |
 | Graduation front-running | Direct-to-pair LP seeding — no intermediate state to exploit |
 | Oracle manipulation | No external oracle needed — curve price is deterministic from reserves |
 | Fee payout bricking | Best-effort fee distribution (failure never blocks trades) |
@@ -317,7 +317,7 @@ Trade Fee:             1% (0.5% creator | 0.5% protocol)
 
 | Milestone | Deliverables |
 |---|---|
-| Week 1-2 | Core contracts: RobinFactory + RobinToken (bonding curve, buy/sell, fee accrual) |
+| Week 1-2 | Core contracts: CafeFunFactory + CafeFunToken (bonding curve, buy/sell, fee accrual) |
 | Week 3 | Graduation + Uniswap V2 migration + LP burn |
 | Week 4 | Frontend: create token page, explore page, token detail + trade UI |
 | Week 5 | Integration: wallet connect, curve chart, live trade feed |

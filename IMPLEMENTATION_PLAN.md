@@ -1,4 +1,4 @@
-# RobinLaunch — Implementation Plan
+# CafeFun — Implementation Plan
 
 **Version:** 1.0  
 **Date:** 2026-07-06  
@@ -110,13 +110,13 @@ cp .env.example .env
 ```
 contracts/
 ├── src/
-│   ├── RobinFactory.sol          # Factory: create tokens, manage protocol
-│   ├── RobinToken.sol            # Individual token: bonding curve + fee logic
-│   ├── RobinFeeCollector.sol     # Protocol treasury
+│   ├── CafeFunFactory.sol          # Factory: create tokens, manage protocol
+│   ├── CafeFunToken.sol            # Individual token: bonding curve + fee logic
+│   ├── CafeFunTreasury.sol     # Protocol treasury
 │   ├── interfaces/
-│   │   ├── IRobinFactory.sol
-│   │   ├── IRobinToken.sol
-│   │   └── IRobinFeeCollector.sol
+│   │   ├── ICafeFunFactory.sol
+│   │   ├── ICafeFunToken.sol
+│   │   └── ICafeFunTreasury.sol
 │   ├── libraries/
 │   │   ├── BondingCurveLib.sol  # Pure math for curve calculations
 │   │   └── FeeLib.sol          # Fee accrual + distribution logic
@@ -125,8 +125,8 @@ contracts/
 │       └── Constants.sol       # Protocol constants
 ├── test/
 │   ├── unit/
-│   │   ├── RobinFactory.t.sol
-│   │   ├── RobinToken.t.sol
+│   │   ├── CafeFunFactory.t.sol
+│   │   ├── CafeFunToken.t.sol
 │   │   ├── BondingCurveLib.t.sol
 │   │   └── FeeLib.t.sol
 │   ├── integration/
@@ -139,13 +139,13 @@ contracts/
 │   └── adversarial/
 │       └── AttackScenarios.t.sol
 ├── script/
-│   ├── DeployRobinFactory.s.sol
-│   └── UpgradeRobinFactory.s.sol
+│   ├── DeployCafeFunFactory.s.sol
+│   └── UpgradeCafeFunFactory.s.sol
 ├── foundry.toml
 └── remappings.txt
 ```
 
-### 1.2 RobinFactory.sol — Detailed Spec
+### 1.2 CafeFunFactory.sol — Detailed Spec
 
 ```solidity
 // SPDX-License-Identifier: MIT
@@ -156,7 +156,7 @@ import {OwnableUpgradeable} from "@oz/contracts/access/OwnableUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@oz/contracts/utils/ReentrancyGuardUpgradeable.sol";
 import {PausableUpgradeable} from "@oz/contracts/utils/PausableUpgradeable.sol";
 
-contract RobinFactory is UUPSUpgradeable, OwnableUpgradeable, ReentrancyGuardUpgradeable, PausableUpgradeable {
+contract CafeFunFactory is UUPSUpgradeable, OwnableUpgradeable, ReentrancyGuardUpgradeable, PausableUpgradeable {
     // ── Storage ───────────────────────────────────────
     struct TokenConfig {
         address creator;
@@ -254,7 +254,7 @@ library BondingCurveLib {
 }
 ```
 
-### 1.4 RobinToken.sol — Key Logic
+### 1.4 CafeFunToken.sol — Key Logic
 
 ```solidity
 // SPDX-License-Identifier: MIT
@@ -264,8 +264,8 @@ import {ERC20} from "@oz/contracts/token/ERC20/ERC20.sol";
 import {ReentrancyGuard} from "@oz/contracts/utils/ReentrancyGuard.sol";
 import {BondingCurveLib} from "./libraries/BondingCurveLib.sol";
 
-contract RobinToken is ERC20, ReentrancyGuard {
-    IRobinFactory public factory;
+contract CafeFunToken is ERC20, ReentrancyGuard {
+    ICafeFunFactory public factory;
     BondingCurveLib.CurveState public curve;
 
     // Fee accumulation post-graduation
@@ -317,17 +317,17 @@ contract RobinToken is ERC20, ReentrancyGuard {
 | Mon | Fork ETH via Anvil, deploy Uniswap V2 locally | Local dev env ready |
 | Tue | Write `BondingCurveLib.sol` — pure math functions | Library compiles, unit tests pass |
 | Wed | Fuzz test curve math — invariants across 10k random trades | Invariants hold |
-| Thu | Write `RobinFactory.sol` — creation logic + CREATE2 vanity | Factory deploys tokens |
+| Thu | Write `CafeFunFactory.sol` — creation logic + CREATE2 vanity | Factory deploys tokens |
 | Fri | Unit tests: factory + token creation | ≥90% coverage on factory |
 
-#### Week 3: RobinToken + Trading
+#### Week 3: CafeFunToken + Trading
 
 | Day | Task | Deliverable |
 |---|---|---|
-| Mon | Write `RobinToken.sol` — buy/sell with curve + fee accrual | Token trades on curve |
+| Mon | Write `CafeFunToken.sol` — buy/sell with curve + fee accrual | Token trades on curve |
 | Tue | Unit tests: buy/sell edge cases (empty curve, max supply, rounding) | All edge cases handled |
 | Wed | Integration test: create → buy → sell → verify fees | End-to-end flow tested |
-| Thu | Fee distribution logic + `RobinFeeCollector.sol` | Fees split correctly |
+| Thu | Fee distribution logic + `CafeFunTreasury.sol` | Fees split correctly |
 | Fri | Integration test: multiple tokens, concurrent trades | Isolation proven |
 
 #### Week 4: Graduation + CTO
@@ -479,7 +479,7 @@ export function calculateTokensForOxc(
 export function useToken(address: `0x${string}`) {
   const tokenContract = {
     address,
-    abi: RobinTokenABI,
+    abi: CafeFunTokenABI,
   };
 
   const { data: curveState } = useReadContract({
@@ -642,12 +642,12 @@ export const ctoRequests = pgTable('cto_requests', {
 
 | Event | Source Contract | Fields |
 |---|---|---|
-| `TokenCreated` | RobinFactory | token, creator, name, symbol |
-| `Buy` | RobinToken | trader, tokenAmount, ethAmount, price |
-| `Sell` | RobinToken | trader, tokenAmount, ethAmount, price |
-| `Graduated` | RobinFactory | token, pair, liquidity, ethAmount |
-| `FeeDestinationChanged` | RobinFactory | token, oldDest, newDest |
-| `Transfer` | RobinToken | from, to, value → holder tracking |
+| `TokenCreated` | CafeFunFactory | token, creator, name, symbol |
+| `Buy` | CafeFunToken | trader, tokenAmount, ethAmount, price |
+| `Sell` | CafeFunToken | trader, tokenAmount, ethAmount, price |
+| `Graduated` | CafeFunFactory | token, pair, liquidity, ethAmount |
+| `FeeDestinationChanged` | CafeFunFactory | token, oldDest, newDest |
+| `Transfer` | CafeFunToken | from, to, value → holder tracking |
 
 ### 3.4 Chat Server Design
 
@@ -655,7 +655,7 @@ export const ctoRequests = pgTable('cto_requests', {
 WebSocket (Socket.IO) flow:
 1. User connects → requests to join room `/token/:address`
 2. User sends message → server verifies off-chain EIP-191 signature
-   Signed message: "RobinLaunch Chat\nToken: {address}\nMessage: {text}\nNonce: {nonce}"
+   Signed message: "CafeFun Chat\nToken: {address}\nMessage: {text}\nNonce: {nonce}"
 3. Server validates signature against sender wallet address
 4. If valid: store in DB + broadcast to room
 5. Creator can send `ban_wallet` event → server adds to ban list
@@ -672,8 +672,8 @@ WebSocket (Socket.IO) flow:
 
 | File | Tests |
 |---|---|
-| `RobinFactory.t.sol` | Creating tokens, edge cases (duplicate salt, zero address), fee config |
-| `RobinToken.t.sol` | Buy/sell at various curve positions, fee calculation rounding |
+| `CafeFunFactory.t.sol` | Creating tokens, edge cases (duplicate salt, zero address), fee config |
+| `CafeFunToken.t.sol` | Buy/sell at various curve positions, fee calculation rounding |
 | `BondingCurveLib.t.sol` | Math correctness across price range, overflow safety |
 | `FeeLib.t.sol` | Fee split accuracy, cumulative accounting |
 
@@ -751,8 +751,8 @@ forge coverage --report lcov
 ### 5.1 Contract Deployment (Forge Script)
 
 ```solidity
-// script/DeployRobinFactory.s.sol
-contract DeployRobinFactory is Script {
+// script/DeployCafeFunFactory.s.sol
+contract DeployCafeFunFactory is Script {
     function run() external {
         uint256 deployerKey = vm.envUint("DEPLOYER_PK");
         address deployer = vm.addr(deployerKey);
@@ -762,23 +762,23 @@ contract DeployRobinFactory is Script {
 
         vm.startBroadcast(deployerKey);
 
-        // 1. Deploy RobinFeeCollector
-        RobinFeeCollector feeCollectorImpl = new RobinFeeCollector();
+        // 1. Deploy CafeFunTreasury
+        CafeFunTreasury feeCollectorImpl = new CafeFunTreasury();
 
-        // 2. Deploy RobinFactory implementation
-        RobinFactory factoryImpl = new RobinFactory();
+        // 2. Deploy CafeFunFactory implementation
+        CafeFunFactory factoryImpl = new CafeFunFactory();
 
         // 3. Deploy ERC1967Proxy for factory
         ERC1967Proxy factoryProxy = new ERC1967Proxy(
             address(factoryImpl),
             abi.encodeWithSelector(
-                RobinFactory.initialize.selector,
+                CafeFunFactory.initialize.selector,
                 uniswapV2Router, weth, address(feeCollectorImpl)
             )
         );
 
         // 4. Transfer ownership
-        RobinFactory(address(factoryProxy)).transferOwnership(deployer);
+        CafeFunFactory(address(factoryProxy)).transferOwnership(deployer);
 
         vm.stopBroadcast();
 
@@ -797,10 +797,10 @@ contract DeployRobinFactory is Script {
 forge script script/DeployUniswapV2.s.sol --rpc-url https://rpc.robinhoodchain.com --broadcast
 
 # 2. Deploy core contracts
-forge script script/DeployRobinFactory.s.sol --rpc-url https://rpc.robinhoodchain.com --broadcast --verify
+forge script script/DeployCafeFunFactory.s.sol --rpc-url https://rpc.robinhoodchain.com --broadcast --verify
 
 # 3. Verify implementation contracts on Blockscout
-forge verify-contract <address> src/RobinFactory.sol:RobinFactory --chain 4663
+forge verify-contract <address> src/CafeFunFactory.sol:CafeFunFactory --chain 4663
 
 # 4. Deploy backend
 cd backend && npm run build
@@ -862,7 +862,7 @@ rsync -avz --exclude node_modules .next/ vps-eth:~/oxi-frontend/
 ```ini
 # /etc/systemd/system/oxi-api.service
 [Unit]
-Description=RobinLaunch API Server
+Description=CafeFun API Server
 After=network.target postgresql.service redis.service
 
 [Service]
@@ -952,13 +952,13 @@ Creator Browser                     LiveKit SFU               Viewer Browser
 ┌─────────────────────────────────┐
 │        Robinhood Chain (ETH)         │
 │  ┌───────────────────────────┐  │
-│  │  RobinFactory               │  │
-│  │  ├─ createToken() ────────┼──┼──→ deploys RobinToken (CREATE2)
+│  │  CafeFunFactory               │  │
+│  │  ├─ createToken() ────────┼──┼──→ deploys CafeFunToken (CREATE2)
 │  │  ├─ graduate() ──────────┼──┼──→ sends LP to UniswapV2
 │  │  └─ setFeeDestination()  │  │
 │  └───────────────────────────┘  │
 │  ┌───────────────────────────┐  │
-│  │  RobinToken #1 (0x...4663)│  │
+│  │  CafeFunToken #1 (0x...cafe)│  │
 │  │  ├─ buy() ───────────────┼──┼──→ mints tokens, updates curve
 │  │  ├─ sell() ──────────────┼──┼──→ burns tokens, returns ETH
 │  │  ├─ graduate() ──────────┼──┼──→ locks liquidity, flags graduated
@@ -1015,7 +1015,7 @@ Seller receives Y ETH
 
 Post-Graduation (Uniswap V2):
 ──────────────────────────────
-Trade on Uniswap V2 (via RobinFeeCollector hook?)
+Trade on Uniswap V2 (via CafeFunTreasury hook?)
   └─ Better approach: 1% fee collected in token contract
      ├─ Accumulates in contract (both creator + protocol shares)
      ├─ When accumulated ≥ $5 → auto-swap to ETH
@@ -1041,13 +1041,13 @@ oxi-launchpad/
 │   ├── foundry.toml
 │   ├── remappings.txt
 │   ├── src/
-│   │   ├── RobinFactory.sol
-│   │   ├── RobinToken.sol
-│   │   ├── RobinFeeCollector.sol
+│   │   ├── CafeFunFactory.sol
+│   │   ├── CafeFunToken.sol
+│   │   ├── CafeFunTreasury.sol
 │   │   ├── interfaces/
-│   │   │   ├── IRobinFactory.sol
-│   │   │   ├── IRobinToken.sol
-│   │   │   └── IRobinFeeCollector.sol
+│   │   │   ├── ICafeFunFactory.sol
+│   │   │   ├── ICafeFunToken.sol
+│   │   │   └── ICafeFunTreasury.sol
 │   │   ├── libraries/
 │   │   │   ├── BondingCurveLib.sol
 │   │   │   └── FeeLib.sol
@@ -1056,8 +1056,8 @@ oxi-launchpad/
 │   │       └── Constants.sol
 │   ├── test/
 │   │   ├── unit/
-│   │   │   ├── RobinFactory.t.sol
-│   │   │   ├── RobinToken.t.sol
+│   │   │   ├── CafeFunFactory.t.sol
+│   │   │   ├── CafeFunToken.t.sol
 │   │   │   ├── BondingCurveLib.t.sol
 │   │   │   └── FeeLib.t.sol
 │   │   ├── integration/
@@ -1070,8 +1070,8 @@ oxi-launchpad/
 │   │   └── adversarial/
 │   │       └── AttackScenarios.t.sol
 │   └── script/
-│       ├── DeployRobinFactory.s.sol
-│       └── UpgradeRobinFactory.s.sol
+│       ├── DeployCafeFunFactory.s.sol
+│       └── UpgradeCafeFunFactory.s.sol
 ├── frontend/
 │   ├── app/
 │   │   ├── layout.tsx
